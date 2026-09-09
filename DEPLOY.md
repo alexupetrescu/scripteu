@@ -24,18 +24,41 @@ Placeholders below: `/srv/scripteu` (deploy path), `scripteu` (service user),
 
 ```bash
 sudo adduser --system --group --home /srv/scripteu --shell /usr/sbin/nologin scripteu
-sudo -u scripteu git clone https://github.com/alexupetrescu/scripteu.git /srv/scripteu/app
-cd /srv/scripteu/app
 
+# adduser applies DIR_MODE from /etc/adduser.conf, which is 0750 on current
+# Debian and Ubuntu, so this comes out drwxr-x--- scripteu:scripteu. Two other
+# accounts must pass through it -- your own, and nginx's -- so open the top
+# level and lock the parts that matter instead. Nothing secret sits directly
+# in /srv/scripteu.
+sudo chmod 0755 /srv/scripteu
+
+sudo -u scripteu git clone https://github.com/alexupetrescu/scripteu.git /srv/scripteu/app
 sudo -u scripteu python3 -m venv /srv/scripteu/.venv
-sudo -u scripteu /srv/scripteu/.venv/bin/pip install -r requirements-vps.txt
+sudo -u scripteu /srv/scripteu/.venv/bin/pip install -r /srv/scripteu/app/requirements-vps.txt
 ```
 
 State that must survive a redeploy, and must never be web-served:
 
 ```bash
 sudo -u scripteu mkdir -p /srv/scripteu/state /srv/scripteu/staticfiles /srv/scripteu/.playwright
-sudo chmod 700 /srv/scripteu/state
+
+# The portal session and the database live here. 0700: not nginx's business,
+# and not any other account's on this box.
+sudo chmod 0700 /srv/scripteu/state
+```
+
+Everything from here runs **as `scripteu`**, not as you. The checkout is owned
+by that account and git refuses to operate on a repository owned by someone
+else ("dubious ownership"). `sudo -u scripteu` works despite the `nologin`
+shell, because it executes the binary rather than a login shell.
+
+Each `manage.py` call also needs the environment file loaded, so define this
+shorthand once per session and use it below:
+
+```bash
+esc() { sudo -u scripteu bash -c 'set -a; . /etc/scripteu.env; set +a
+        cd /srv/scripteu/app
+        exec /srv/scripteu/.venv/bin/python manage.py "$@"' -- "$@"; }
 ```
 
 ## 2. Playwright's browser
@@ -51,7 +74,7 @@ sudo -u scripteu PLAYWRIGHT_BROWSERS_PATH=/srv/scripteu/.playwright \
 ## 3. Environment
 
 ```bash
-sudo cp deploy/scripteu.env.example /etc/scripteu.env
+sudo cp /srv/scripteu/app/deploy/scripteu.env.example /etc/scripteu.env
 sudo /srv/scripteu/.venv/bin/python -c \
   "from django.core.management.utils import get_random_secret_key as k; print(k())"
 sudo nano /etc/scripteu.env          # paste the key, check the paths
@@ -64,17 +87,19 @@ cookies with a value that is in a public repo.
 ## 4. Database, static files, your login
 
 ```bash
-cd /srv/scripteu/app
-sudo -u scripteu bash -c 'set -a; . /etc/scripteu.env; set +a; \
-  /srv/scripteu/.venv/bin/python manage.py migrate && \
-  /srv/scripteu/.venv/bin/python manage.py collectstatic --noinput && \
-  /srv/scripteu/.venv/bin/python manage.py createsuperuser'
+esc migrate
+esc collectstatic --noinput
+esc createsuperuser        # the app's own login, not your EU Login
 ```
+
+The database is created at `ESC_DB_PATH`, inside `state/` rather than in the
+checkout: the outreach history is personal data, and a deploy stays a plain
+`git pull`.
 
 ## 5. gunicorn
 
 ```bash
-sudo cp deploy/scripteu.service /etc/systemd/system/scripteu.service
+sudo cp /srv/scripteu/app/deploy/scripteu.service /etc/systemd/system/scripteu.service
 sudo nano /etc/systemd/system/scripteu.service      # user, group, paths
 sudo systemctl daemon-reload
 sudo systemctl enable --now scripteu
@@ -89,13 +114,14 @@ worker mid-run would kill it.
 ## 6. nginx
 
 ```bash
-sudo cp deploy/nginx-scripteu.conf /etc/nginx/snippets/scripteu.conf
+sudo cp /srv/scripteu/app/deploy/nginx-scripteu.conf /etc/nginx/snippets/scripteu.conf
 sudo htpasswd -c /etc/nginx/scripteu.htpasswd <your-name>
-sudo chown root:www-data /etc/nginx/scripteu.htpasswd && sudo chmod 640 /etc/nginx/scripteu.htpasswd
+sudo chown root:www-data /etc/nginx/scripteu.htpasswd
+sudo chmod 640 /etc/nginx/scripteu.htpasswd
 ```
 
 Add one line inside the existing `server { }` block for avestudio.ro (the HTTPS
-one), then:
+one), then reload:
 
 ```nginx
 include /etc/nginx/snippets/scripteu.conf;
@@ -137,8 +163,8 @@ ssh -L 5901:localhost:5901 <you>@avestudio.ro       # leave this open
 Point any VNC viewer at `localhost:5901`, then, back on the server:
 
 ```bash
-cd /srv/scripteu/app
-sudo -u scripteu bash -c 'set -a; . /etc/scripteu.env; set +a; \
+sudo -u scripteu bash -c 'set -a; . /etc/scripteu.env; set +a
+  cd /srv/scripteu/app
   DISPLAY=:99 ESC_HEADLESS=0 /srv/scripteu/.venv/bin/python manage.py esc_login --pass-id 82413'
 ```
 
@@ -164,12 +190,10 @@ let the ticket go.
 ## Updating
 
 ```bash
-cd /srv/scripteu/app
-sudo -u scripteu git pull
-sudo -u scripteu /srv/scripteu/.venv/bin/pip install -r requirements-vps.txt
-sudo -u scripteu bash -c 'set -a; . /etc/scripteu.env; set +a; \
-  /srv/scripteu/.venv/bin/python manage.py migrate && \
-  /srv/scripteu/.venv/bin/python manage.py collectstatic --noinput'
+sudo -u scripteu git -C /srv/scripteu/app pull
+sudo -u scripteu /srv/scripteu/.venv/bin/pip install -r /srv/scripteu/app/requirements-vps.txt
+esc migrate
+esc collectstatic --noinput
 sudo systemctl restart scripteu
 ```
 
@@ -190,6 +214,9 @@ where they belong. Everything else should come back clean.
 
 | Symptom | Look at |
 |---|---|
+| `cd`: Permission denied as your own user | `/srv/scripteu` is `0750` from `adduser` — `sudo chmod 0755 /srv/scripteu` |
+| 403 on `/scripteu/static/...` | same cause: nginx cannot traverse a `0750` home either |
+| git "dubious ownership" | run git as the owner: `sudo -u scripteu git -C /srv/scripteu/app ...` |
 | 502, permission denied | socket ownership: unit `Group=` vs nginx's user |
 | 404 on every page | the `:/` at the end of `proxy_pass`, and `ESC_SCRIPT_NAME` — you need both |
 | CSS missing, admin unstyled | `collectstatic`, and the `alias` path in the snippet |
