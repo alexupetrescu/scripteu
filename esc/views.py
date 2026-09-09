@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.contrib import messages
 from django.db.models import Count, Q
 from django.http import JsonResponse
@@ -312,6 +313,7 @@ def settings_view(request):
         'form': form,
         'status': _portal_status(),
         'default_pass_id': pass_id,
+        'vnc_url': settings.ESC_VNC_URL if settings.ESC_VNC_ENABLED else '',
         'login_running': login_manager.is_running(),
         'login_command': f'python manage.py esc_login --pass-id {pass_id}',
         'inspect_command': f'python manage.py esc_inspect --pass-id {pass_id} --capture-action',

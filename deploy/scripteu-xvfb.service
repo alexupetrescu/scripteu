@@ -1,0 +1,20 @@
+# /etc/systemd/system/scripteu-xvfb.service
+# A virtual screen for the EU Login browser. The sign-in must happen in a
+# browser running here, because the session cookies have to end up on this
+# machine -- so the app shows you that browser instead of asking you to sit at
+# the server.
+[Unit]
+Description=ESC outreach: virtual display for the login browser
+Before=scripteu-x11vnc.service
+
+[Service]
+User=scripteu
+Group=www-data
+# No PrivateTmp anywhere in this chain: the X socket lives in /tmp/.X11-unix,
+# and the app process has to be able to reach it.
+ExecStart=/usr/bin/Xvfb :99 -screen 0 1440x900x24 -nolisten tcp
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

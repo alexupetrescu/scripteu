@@ -1,0 +1,21 @@
+# /etc/systemd/system/scripteu-novnc.service
+#
+# Serves noVNC (the browser-side VNC client) and bridges WebSocket -> VNC, so
+# the login browser appears inside a normal web page.
+#
+# ESC_NOVNC_PORT below must be free on this host. Check first:
+#     ss -ltnp | grep 6081
+[Unit]
+Description=ESC outreach: noVNC bridge for the login browser
+Requires=scripteu-x11vnc.service
+After=scripteu-x11vnc.service
+
+[Service]
+User=scripteu
+Group=www-data
+ExecStart=/usr/bin/websockify --web=/usr/share/novnc 127.0.0.1:6081 127.0.0.1:5901
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

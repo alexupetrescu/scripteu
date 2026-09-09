@@ -49,7 +49,10 @@ TimeoutStopSec=30
 # Hardening. ReadWritePaths must cover the database, the saved session and
 # Playwright's browser cache.
 NoNewPrivileges=true
-PrivateTmp=true
+# NOT PrivateTmp: the EU Login browser is launched by this process onto the
+# virtual display, and X's socket lives in /tmp/.X11-unix. A private /tmp
+# means the browser cannot find the screen and the sign-in never appears.
+PrivateTmp=false
 ProtectSystem=full
 ProtectHome=true
 ReadWritePaths=/srv/scripteu

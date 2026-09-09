@@ -265,6 +265,12 @@ ESC_SESSION_WARN_DAYS = int(os.environ.get('ESC_SESSION_WARN_DAYS', '2'))
 ESC_HEARTBEAT_ENABLED = os.environ.get('ESC_HEARTBEAT_ENABLED', '1') == '1'
 ESC_HEARTBEAT_INTERVAL = int(os.environ.get('ESC_HEARTBEAT_INTERVAL', '900'))
 
+# The EU Login sign-in runs a real browser on the server and shows it in the
+# Settings page over noVNC, so it can be completed from any machine's browser
+# rather than from a terminal at the server. Empty URL = no console rendered.
+ESC_VNC_ENABLED = os.environ.get('ESC_VNC_ENABLED', '0') == '1'
+ESC_VNC_URL = os.environ.get('ESC_VNC_URL', '')
+
 # Default pacing. Deliberately slow: this contacts real people, and hammering
 # the portal is the fastest way to get an organisation account suspended.
 ESC_DEFAULT_MIN_DELAY = 8

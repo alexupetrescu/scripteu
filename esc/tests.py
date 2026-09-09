@@ -380,6 +380,24 @@ class PortalLoginViewTests(SignedIn, TestCase):
         self.assertContains(response, 'name="pass_id"')
 
 
+class LoginConsoleTests(SignedIn, TestCase):
+    """The server-side login browser, shown in the page over noVNC."""
+
+    @override_settings(ESC_VNC_ENABLED=True, ESC_VNC_URL='vnc.html?path=x')
+    def test_console_is_rendered_when_configured(self):
+        response = self.client.get(reverse('esc:settings'))
+        self.assertContains(response, 'id="vnc-frame"')
+        # escapejs encodes '=' in the JS string literal; assert the stable part.
+        self.assertContains(response, 'vnc.html')
+
+    @override_settings(ESC_VNC_ENABLED=False, ESC_VNC_URL='vnc.html?path=x')
+    def test_no_console_when_disabled(self):
+        # Local use opens a real window instead; an iframe to nothing would
+        # only be a broken black box.
+        response = self.client.get(reverse('esc:settings'))
+        self.assertNotContains(response, 'id="vnc-frame"')
+
+
 class FilterSchemaTests(SignedIn, TestCase):
     def test_bundled_schema_is_available(self):
         fields = adapter.load_filter_schema()

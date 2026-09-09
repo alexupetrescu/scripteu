@@ -577,7 +577,9 @@ def interactive_login(
     state_path = storage_state_path()
     state_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with profile_lock(wait_s=10):
+    # Wait properly for the browser: a heartbeat tick may hold it, and a person
+    # sitting in front of a login page is worth more than one keep-alive.
+    with profile_lock(wait_s=60):
         with sync_playwright() as p:
             browser = None
             if persistent:

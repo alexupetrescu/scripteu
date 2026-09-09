@@ -156,47 +156,53 @@ denied* in the error log, that pairing is wrong.
 `https://avestudio.ro/scripteu/` should now ask for basic auth, then show the
 app's own sign-in page.
 
-## 7. The EU Login sign-in, once
+## 7. The login console
 
-The only step that needs a real browser. Nothing is typed for you and no
-password passes through this tool.
-
-```bash
-sudo apt install -y xvfb x11vnc
-
-# Stop the service first: it would otherwise be holding the browser profile.
-sudo systemctl stop scripteu
-
-sudo -u scripteu Xvfb :99 -screen 0 1440x900x24 &
-sudo -u scripteu x11vnc -display :99 -localhost -rfbport 5901 -nopw -forever &
-```
-
-`-localhost` means the VNC port is not exposed to the internet. Reach it from
-your own machine through the SSH tunnel:
+The EU Login sign-in needs a real browser, and it has to be a browser *on this
+server* -- that is where the session cookies must end up. So the server runs
+one on a virtual screen and shows it to you inside the app, over noVNC. You do
+the sign-in from any machine, in your own browser, at
+`avestudio.ro/scripteu/settings/`. No VNC client, no terminal.
 
 ```bash
-ssh -L 5901:localhost:5901 <you>@avestudio.ro       # leave this open
+sudo apt install -y xvfb x11vnc novnc websockify
+
+# 6081 must be free -- this host already runs things on 3000 and 8000.
+ss -ltnp | grep 6081 || echo "6081 free"
+
+sudo cp /srv/scripteu/app/deploy/scripteu-xvfb.service   /etc/systemd/system/
+sudo cp /srv/scripteu/app/deploy/scripteu-x11vnc.service /etc/systemd/system/
+sudo cp /srv/scripteu/app/deploy/scripteu-novnc.service  /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now scripteu-xvfb scripteu-x11vnc scripteu-novnc
+systemctl is-active scripteu-xvfb scripteu-x11vnc scripteu-novnc
 ```
 
-Point any VNC viewer at `localhost:5901`, then, back on the server:
+Add `DISPLAY=:99`, `ESC_VNC_ENABLED=1` and `ESC_VNC_URL` to `/etc/scripteu.env`
+(they are in the template), refresh the nginx snippet for the `/scripteu/vnc/`
+location, and restart:
 
 ```bash
-sudo -u scripteu bash -c 'set -a; . /etc/scripteu.env; set +a
-  cd /srv/scripteu/app
-  DISPLAY=:99 ESC_HEADLESS=0 /srv/scripteu/.venv/bin/python manage.py esc_login --pass-id 82413'
+sudo cp /srv/scripteu/app/deploy/nginx-scripteu.conf /etc/nginx/snippets/scripteu.conf
+sudo nginx -t && sudo systemctl reload nginx
+sudo systemctl restart scripteu
 ```
 
-A browser appears in your VNC window. Complete EU Login including 2FA. The
-session is saved to `/srv/scripteu/state/`, verified headlessly, and reused from
-then on.
+Then, in your browser: **Settings -> Open login in same browser**. The server's
+browser appears in the page. Complete EU Login there, including 2FA. When it
+finishes, the app verifies the session headlessly and the panel flips to
+**signed in**.
 
-```bash
-sudo pkill -u scripteu x11vnc; sudo pkill -u scripteu Xvfb
-sudo systemctl start scripteu
-```
+Run a **dry run** before anything else.
 
-Open Settings in the app: it should read **signed in**, with the two expiry
-dates and the keep-alive line. Then run a **dry run** before anything else.
+Two things to know about this console:
+
+- **It is guarded by the basic-auth password only.** It is not a Django view,
+  so the app's own login does not cover it, and whoever opens it is driving a
+  real browser on your server. Keep that htpasswd tight.
+- **`PrivateTmp` must stay off** in `scripteu.service`. X's socket lives in
+  `/tmp/.X11-unix`, and a private `/tmp` means the login browser cannot find
+  the screen -- you would get a blank console and a timeout.
 
 ## When you have to sign in again
 

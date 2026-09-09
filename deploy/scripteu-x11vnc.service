@@ -1,0 +1,18 @@
+# /etc/systemd/system/scripteu-x11vnc.service
+[Unit]
+Description=ESC outreach: VNC server for the login browser
+Requires=scripteu-xvfb.service
+After=scripteu-xvfb.service
+
+[Service]
+User=scripteu
+Group=www-data
+Environment=DISPLAY=:99
+# -localhost: never reachable from the network directly. The only way in is
+# through nginx, which requires the basic-auth password.
+ExecStart=/usr/bin/x11vnc -display :99 -localhost -rfbport 5901 -nopw -forever -shared -noxdamage -quiet
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

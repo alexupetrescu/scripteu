@@ -80,6 +80,21 @@
     </span>
   </form>
 
+  {% if vnc_url %}
+    <div id="login-console" {% if not login_running %}hidden{% endif %}
+         style="margin-top:16px">
+      <p class="helptext" style="margin-bottom:6px">
+        The browser below is running <b>on the server</b> — that is where the
+        session has to end up. Complete EU Login in it, including 2FA. Nothing
+        is typed for you.
+      </p>
+      <iframe id="vnc-frame" title="EU Login browser"
+              style="width:100%; height:640px; border:1px solid var(--line);
+                     border-radius:6px; background:#000"
+              allow="clipboard-read; clipboard-write"></iframe>
+    </div>
+  {% endif %}
+
   <p class="muted" style="margin-top:14px">
     Opens your installed browser (Chrome/Edge) with the same saved profile every
     later run uses, so EU Login remembers the device and 2FA is not re-asked. When
@@ -156,9 +171,29 @@
   var url = "{% url 'esc:portal_login_status' %}";
   var wasRunning = {{ login_running|yesno:"true,false" }};
 
-  // While the login window is open, show the browser's echoed messages and
+  // The server-side login browser, shown over noVNC. The iframe src is only
+  // set when a login is actually running: an idle console would hold a VNC
+  // connection open for as long as the page is left sitting there.
+  var consoleBox = document.getElementById('login-console');
+  var frame = document.getElementById('vnc-frame');
+  var vncUrl = "{{ vnc_url|escapejs }}";
+
+  function showConsole() {
+    if (!consoleBox || !frame) return;
+    consoleBox.hidden = false;
+    if (!frame.src) frame.src = vncUrl;
+  }
+
+  function hideConsole() {
+    if (!consoleBox || !frame) return;
+    consoleBox.hidden = true;
+    frame.src = '';   // drop the VNC connection
+  }
+
+  // While the login browser is open, show the messages it echoes back and
   // reload once it finishes so the "signed in" banner updates.
   form.addEventListener('submit', function () {
+    showConsole();
     setTimeout(function () { btn.disabled = true; poll(); }, 300);
   });
 
@@ -170,9 +205,11 @@
         if (d.running) {
           btn.disabled = true;
           wasRunning = true;
+          showConsole();
           setTimeout(poll, 1500);
         } else if (wasRunning) {
           // A login that was running has just finished — refresh the page.
+          hideConsole();
           setTimeout(function () { location.reload(); }, 800);
         } else {
           btn.disabled = false;
