@@ -75,14 +75,28 @@ sudo -u scripteu PLAYWRIGHT_BROWSERS_PATH=/srv/scripteu/.playwright \
 
 ```bash
 sudo cp /srv/scripteu/app/deploy/scripteu.env.example /etc/scripteu.env
-sudo /srv/scripteu/.venv/bin/python -c \
-  "from django.core.management.utils import get_random_secret_key as k; print(k())"
+
+# A URL-safe key, deliberately. This file is both sourced by a shell and read
+# by systemd, and Django's own get_random_secret_key() emits ) & # $ ^ * --
+# put one of those in unquoted and the shell dies on it.
+sudo -u scripteu /srv/scripteu/.venv/bin/python -c \
+  "import secrets; print(secrets.token_urlsafe(64))"
+
 sudo nano /etc/scripteu.env          # paste the key, check the paths
 sudo chown root:scripteu /etc/scripteu.env && sudo chmod 640 /etc/scripteu.env
 ```
 
 The app refuses to start with `ESC_DEBUG=0` and no key, rather than signing
 cookies with a value that is in a public repo.
+
+Check the file parses before moving on. A stray metacharacter aborts the
+sourcing at that line, leaving everything after it unset — which surfaces later
+as Django complaining about a variable the file plainly contains:
+
+```bash
+sudo -u scripteu bash -c 'set -a; . /etc/scripteu.env; set +a
+    echo "key length: ${#ESC_SECRET_KEY}, db: $ESC_DB_PATH"'
+```
 
 ## 4. Database, static files, your login
 
@@ -225,6 +239,8 @@ where they belong. Everything else should come back clean.
 | Browser fails to start | `ESC_BROWSER_ARGS=--no-sandbox,--disable-dev-shm-usage`, and `playwright install-deps` |
 | Settings says expired right after signing in | ECAS may have rejected the session; check `journalctl -u scripteu` |
 | `No matching distribution found for Django` | the interpreter is too old for the pinned Django; check `python3 -V` (5.2 LTS needs 3.10+) |
+| `/etc/scripteu.env: syntax error near unexpected token` | a value contains shell metacharacters — regenerate the key with `secrets.token_urlsafe`, or single-quote the value |
+| `ESC_SECRET_KEY must be set` when it *is* in the file | same cause: sourcing aborted on an earlier line, so nothing after it was exported |
 
 ```bash
 journalctl -u scripteu -f
