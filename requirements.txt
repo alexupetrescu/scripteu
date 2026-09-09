@@ -1,7 +1,8 @@
-﻿asgiref==3.12.1
-Django==6.1
-greenlet==3.5.4
+# Django 5.2 LTS, not 6.x: 6.0+ requires Python 3.12, and this runs on servers
+# with an older interpreter. Nothing in this project uses a 6.x-only API, and
+# 5.2 is supported until 2028.
+Django>=5.2,<6.0
 playwright==1.62.0
-pyee==13.0.1
-sqlparse==0.5.5
-tzdata==2026.3
+
+# asgiref, sqlparse, tzdata, greenlet and pyee are transitive; pinning them to
+# versions from the 6.x stack is what made this fail to install at all.

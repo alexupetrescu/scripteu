@@ -224,6 +224,7 @@ where they belong. Everything else should come back clean.
 | Logged out of another app on the domain | should not happen — cookies here are `scripteu_*` and scoped to the prefix |
 | Browser fails to start | `ESC_BROWSER_ARGS=--no-sandbox,--disable-dev-shm-usage`, and `playwright install-deps` |
 | Settings says expired right after signing in | ECAS may have rejected the session; check `journalctl -u scripteu` |
+| `No matching distribution found for Django` | the interpreter is too old for the pinned Django; check `python3 -V` (5.2 LTS needs 3.10+) |
 
 ```bash
 journalctl -u scripteu -f
