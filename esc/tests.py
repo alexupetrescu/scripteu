@@ -15,14 +15,34 @@ import tempfile
 import time
 from unittest import mock
 
+from django.contrib.auth import get_user_model
 from django.test import TestCase, override_settings
-from django.urls import reverse
+from django.urls import reverse, set_script_prefix
 from django.utils import timezone
 
 from . import runner
 from .models import Candidate, GlobalSettings, MessageTemplate, Outreach, Run, SearchProfile
 from .portal import adapter, auth, heartbeat, login_manager
 from .portal.auth import SessionExpired
+
+
+class SignedIn:
+    """Sign the test client in.
+
+    Every page is behind LoginRequiredMiddleware — the app drives a live admin
+    credential, so an anonymous request must never reach one.
+    """
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        # No password: force_login does not need one, and hashing one per test
+        # costs more than the rest of this suite put together.
+        cls.user = get_user_model().objects.create_user(username='tester')
+
+    def setUp(self):
+        super().setUp()
+        self.client.force_login(self.user)
 
 
 def make_profile(**kwargs):
@@ -214,7 +234,7 @@ class RunnerTests(TestCase):
         self.assertIn('kill switch', run.log.lower())
 
 
-class ViewTests(TestCase):
+class ViewTests(SignedIn, TestCase):
     def test_all_pages_render(self):
         make_profile()
         for name in [
@@ -315,7 +335,7 @@ class ViewTests(TestCase):
         self.assertTrue(run.stop_requested)
 
 
-class PortalLoginViewTests(TestCase):
+class PortalLoginViewTests(SignedIn, TestCase):
     def test_login_button_starts_interactive_login(self):
         from .portal import login_manager
 
@@ -360,7 +380,7 @@ class PortalLoginViewTests(TestCase):
         self.assertContains(response, 'name="pass_id"')
 
 
-class FilterSchemaTests(TestCase):
+class FilterSchemaTests(SignedIn, TestCase):
     def test_bundled_schema_is_available(self):
         fields = adapter.load_filter_schema()
         names = {f['name'] for f in fields}
@@ -552,8 +572,9 @@ class SsoRecoveryTests(TestCase):
 # Claim before send: the no-double-contact promise, at the ordering level
 # ---------------------------------------------------------------------------
 
-class ClaimBeforeSendTests(TestCase):
+class ClaimBeforeSendTests(SignedIn, TestCase):
     def setUp(self):
+        super().setUp()
         self.template = MessageTemplate.objects.create(
             name='t', subject='s', body='Hello there'
         )
@@ -644,7 +665,7 @@ class ClaimBeforeSendTests(TestCase):
 # One run at a time
 # ---------------------------------------------------------------------------
 
-class RunSlotTests(TestCase):
+class RunSlotTests(SignedIn, TestCase):
     def test_start_run_refuses_while_another_run_is_in_flight(self):
         profile = make_profile()
         Run.objects.create(search_profile=profile, state=Run.State.RUNNING)
@@ -738,3 +759,55 @@ class ProfileLockTests(TestCase):
             # released again afterwards
             with auth.profile_lock():
                 pass
+
+
+class AccessControlTests(TestCase):
+    """The lock on the front door, tested as such."""
+
+    def test_every_page_redirects_an_anonymous_visitor_to_the_login(self):
+        for name in ('esc:dashboard', 'esc:settings', 'esc:outreach_log',
+                     'esc:run_list', 'esc:candidate_list', 'esc:template_list'):
+            response = self.client.get(reverse(name))
+            self.assertEqual(response.status_code, 302, name)
+            self.assertIn('/accounts/login/', response['Location'], name)
+
+    def test_the_run_endpoint_is_not_reachable_anonymously(self):
+        profile = make_profile()
+        response = self.client.post(
+            reverse('esc:run_start', args=[profile.pk]),
+            {'mode': 'live', 'confirm': 'yes'},
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn('/accounts/login/', response['Location'])
+        self.assertFalse(Run.objects.exists())
+
+    def test_the_login_page_itself_is_reachable(self):
+        self.assertEqual(self.client.get(reverse('login')).status_code, 200)
+
+
+@override_settings(FORCE_SCRIPT_NAME='/scripteu')
+class SubpathTests(TestCase):
+    """Mounted at /scripteu, with nginx stripping the prefix before gunicorn.
+
+    The arrangement only holds if two things are both true: requests resolve
+    against the *stripped* path, and every URL rendered back out carries the
+    prefix. Get one of them wrong and the app 404s or links to nowhere.
+    """
+
+    def setUp(self):
+        # What django.core.handlers.wsgi does from SCRIPT_NAME on every real
+        # request. reverse() reads this prefix, not the setting.
+        set_script_prefix('/scripteu/')
+        self.addCleanup(set_script_prefix, '/')
+
+    def test_urls_are_generated_with_the_prefix(self):
+        self.assertEqual(reverse('esc:dashboard'), '/scripteu/')
+        self.assertEqual(reverse('esc:settings'), '/scripteu/settings/')
+
+    def test_requests_arrive_stripped_and_redirect_back_prefixed(self):
+        response = self.client.get('/')
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(
+            response['Location'], '/scripteu/accounts/login/?next=/scripteu/'
+        )
+

@@ -1,0 +1,30 @@
+{% extends 'esc/base.html' %}
+{% block title %}Sign in — ESC Outreach{% endblock %}
+
+{% block content %}
+<h1>Sign in</h1>
+<p class="sub">This tool holds a live admin session for your organisation's ESC
+placement, so it is not left open to the internet.</p>
+
+<div class="panel" style="max-width:420px">
+  {% if form.errors %}
+    <div class="banner bad"><div>That username and password did not match.</div></div>
+  {% endif %}
+  <form method="post">
+    {% csrf_token %}
+    <p>
+      <label for="{{ form.username.id_for_label }}">Username</label>
+      {{ form.username }}
+    </p>
+    <p>
+      <label for="{{ form.password.id_for_label }}">Password</label>
+      {{ form.password }}
+    </p>
+    <button class="btn primary" type="submit">Sign in</button>
+  </form>
+  <p class="helptext" style="margin-top:14px">
+    This is the app's own account, not your EU Login. The portal sign-in happens
+    separately, in a real browser, and is never typed here.
+  </p>
+</div>
+{% endblock %}

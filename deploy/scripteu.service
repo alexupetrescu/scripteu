@@ -1,0 +1,57 @@
+# /etc/systemd/system/scripteu.service
+#
+# Adjust User/Group/paths to match the other Django apps on this host, then:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now scripteu
+[Unit]
+Description=ESC candidate outreach (gunicorn)
+After=network.target
+
+[Service]
+Type=notify
+User=scripteu
+Group=www-data
+WorkingDirectory=/srv/scripteu
+EnvironmentFile=/etc/scripteu.env
+
+# A unix socket, not a port: this host already runs several gunicorn apps and
+# a socket cannot collide with any of them. systemd creates /run/scripteu with
+# the right ownership and removes it on stop.
+RuntimeDirectory=scripteu
+RuntimeDirectoryMode=0750
+
+# ONE worker, deliberately. A run executes on a background thread inside the
+# worker process, and the session heartbeat, the browser-profile lock and the
+# one-run-at-a-time slot all assume a single process. Threads keep the UI
+# responsive while a run is going; --max-requests is deliberately absent
+# because recycling the worker would kill an in-flight run.
+ExecStart=/srv/scripteu/.venv/bin/gunicorn config.wsgi:application \
+    --workers 1 \
+    --worker-class gthread \
+    --threads 4 \
+    --bind unix:/run/scripteu/gunicorn.sock \
+    --umask 007 \
+    --timeout 120 \
+    --graceful-timeout 30 \
+    --access-logfile - \
+    --error-logfile -
+
+ExecReload=/bin/kill -s HUP $MAINPID
+KillMode=mixed
+Restart=on-failure
+RestartSec=5
+
+# A stop or restart kills any run in flight; the app fails those rows on the
+# next start rather than leaving them stuck, and an unconfirmed send is
+# flagged in the UI for a human to settle.
+TimeoutStopSec=30
+
+# Hardening. ReadWritePaths must cover the database, the saved session and
+# Playwright's browser cache.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ReadWritePaths=/srv/scripteu
+
+[Install]
+WantedBy=multi-user.target

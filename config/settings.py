@@ -39,9 +39,43 @@ if not SECRET_KEY:
         )
     SECRET_KEY = 'django-insecure-local-development-only-not-for-deployment'
 
-# This tool is a single-user local application. It is never meant to be exposed
-# to a network: the saved portal session it drives is a live admin credential.
-ALLOWED_HOSTS = ['127.0.0.1', 'localhost']
+# The saved portal session this tool drives is a live admin credential, so the
+# app is locked down by default and only opens up when the environment says to.
+ALLOWED_HOSTS = [
+    h.strip() for h in
+    os.environ.get('ESC_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
+    if h.strip()
+]
+
+# Served under a path prefix (e.g. /scripteu) behind a reverse proxy. Django
+# reverses every URL through this, so templates need no changes.
+FORCE_SCRIPT_NAME = os.environ.get('ESC_SCRIPT_NAME') or None
+_PREFIX = (FORCE_SCRIPT_NAME or '').rstrip('/')
+
+CSRF_TRUSTED_ORIGINS = [
+    o.strip() for o in os.environ.get('ESC_CSRF_TRUSTED_ORIGINS', '').split(',')
+    if o.strip()
+]
+
+# Cookie names and paths are scoped to this app. A host running several Django
+# apps hands them all the same domain, so a plain "sessionid" would have them
+# silently logging each other out.
+SESSION_COOKIE_NAME = 'scripteu_sessionid'
+CSRF_COOKIE_NAME = 'scripteu_csrftoken'
+if _PREFIX:
+    SESSION_COOKIE_PATH = CSRF_COOKIE_PATH = _PREFIX + '/'
+
+if not DEBUG:
+    # nginx terminates TLS, so Django has to be told the original scheme or it
+    # builds http:// redirects and refuses secure cookies.
+    SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SESSION_COOKIE_HTTPONLY = True
+    X_FRAME_OPTIONS = 'DENY'
+    SECURE_CONTENT_TYPE_NOSNIFF = True
+    # This is a working tool, not a browsing session: log out reasonably soon.
+    SESSION_COOKIE_AGE = int(os.environ.get('ESC_SESSION_COOKIE_AGE', 60 * 60 * 12))
 
 
 # Application definition
@@ -62,6 +96,9 @@ MIDDLEWARE = [
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
+    # Every page requires a signed-in user. Django exempts its own login view
+    # and the admin login; nothing else in this project opts out.
+    'django.contrib.auth.middleware.LoginRequiredMiddleware',
     'django.contrib.messages.middleware.MessageMiddleware',
     'django.middleware.clickjacking.XFrameOptionsMiddleware',
 ]
@@ -138,19 +175,32 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.1/howto/static-files/
 
-STATIC_URL = 'static/'
+STATIC_URL = f'{_PREFIX}/static/'
+STATIC_ROOT = Path(os.environ.get('ESC_STATIC_ROOT', BASE_DIR / 'staticfiles'))
+
+LOGIN_URL = 'login'                 # resolved by name, so the prefix applies
+LOGIN_REDIRECT_URL = 'esc:dashboard'
+LOGOUT_REDIRECT_URL = 'login'
 
 
-# Email
-# https://docs.djangoproject.com/en/6.1/topics/email/#topic-email-configuration
-
-MAILERS = {
-    'default': {
-        'BACKEND': 'django.core.mail.backends.console.EmailBackend',
-    },
-}
+# No email is sent from here: the tool's only outbound channel is the portal's
+# own contact form, driven through a browser.
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# runner.py and heartbeat.py set DJANGO_ALLOW_ASYNC_UNSAFE, because Playwright's
+# sync API runs a private asyncio loop inside a worker thread that is otherwise
+# genuinely blocking, and that trips Django's async-safety guard. This app is
+# WSGI-only and cannot run under ASGI (sync Playwright, background threads), so
+# the guard has nothing to protect here. Recorded rather than left as noise in
+# `check --deploy`.
+SILENCED_SYSTEM_CHECKS = ['async.E001']
+
+# HSTS and the HTTP->HTTPS redirect are deliberately NOT set here. This app is
+# mounted at a path on a domain it shares with other sites; an HSTS header it
+# emitted would apply to the whole of that domain, and a Django-level redirect
+# would fight the reverse proxy that already does it. Both belong in nginx.
+SECURE_SSL_REDIRECT = os.environ.get('ESC_SSL_REDIRECT', '0') == '1'
 
 
 # ---------------------------------------------------------------------------
@@ -187,6 +237,14 @@ ESC_BROWSER_PROFILE = Path(
     os.environ.get('ESC_BROWSER_PROFILE', BASE_DIR / '.browser_profile')
 )
 ESC_BROWSER_CHANNEL = os.environ.get('ESC_BROWSER_CHANNEL', 'chrome')
+
+# Extra Chromium flags, comma-separated. Servers usually need
+# "--no-sandbox,--disable-dev-shm-usage": there is no user namespace to sandbox
+# into under a service account, and /dev/shm is often tiny on a VPS, which
+# makes Chrome die in ways that look like a timeout.
+ESC_BROWSER_ARGS = [
+    a.strip() for a in os.environ.get('ESC_BROWSER_ARGS', '').split(',') if a.strip()
+]
 
 # How long to wait for EU Login to hand us back after a redirect. While the EU
 # Login ticket is valid this is a silent round trip of a few seconds; only when

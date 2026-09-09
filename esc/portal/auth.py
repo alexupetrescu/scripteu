@@ -487,7 +487,9 @@ def browser_context(headless: bool | None = None, wait_s: float = 0):
                 context = _launch_persistent(p, headless=headless)
                 _inject_saved_cookies(context)
             else:
-                browser = p.chromium.launch(headless=headless)
+                browser = p.chromium.launch(
+                    headless=headless, args=list(settings.ESC_BROWSER_ARGS)
+                )
                 context = browser.new_context(
                     storage_state=str(state_path) if has_session() else None,
                     locale='en-GB',
@@ -545,6 +547,7 @@ def _launch_persistent(p, headless: bool = False, echo=None):
             kwargs = dict(
                 user_data_dir=str(d), headless=headless,
                 locale='en-GB', viewport={'width': 1440, 'height': 900},
+                args=list(settings.ESC_BROWSER_ARGS),
             )
             if channel:
                 kwargs['channel'] = channel
@@ -582,7 +585,9 @@ def interactive_login(
                 _inject_saved_cookies(context)
                 page = context.pages[0] if context.pages else context.new_page()
             else:
-                browser = p.chromium.launch(headless=False)
+                browser = p.chromium.launch(
+                    headless=False, args=list(settings.ESC_BROWSER_ARGS)
+                )
                 context = browser.new_context(
                     storage_state=str(state_path) if has_session() else None,
                     locale='en-GB',

@@ -78,6 +78,15 @@ Two things therefore remain unconfirmed and are guarded by
 Searching works today; reading rows and contacting are blocked until you run a
 search that returns people and capture those selectors (see step 3 below).
 
+## Running it on a server
+
+This is built as a local, single-user tool and its defaults reflect that:
+`ALLOWED_HOSTS` is loopback-only, `DEBUG` is on, and there is no usable
+`SECRET_KEY` in the repo. [DEPLOY.md](DEPLOY.md) covers putting it behind nginx
+under a path prefix — including the two things this app makes non-negotiable:
+it goes behind both HTTP basic auth and a Django login, and the one-time EU
+Login happens in a browser on the server, over VNC through an SSH tunnel.
+
 ## Setup
 
 ```bash
@@ -214,9 +223,10 @@ esc/runner.py              the run executor (background thread)
 esc/portal/auth.py         EU Login session capture, reuse and SSO recovery
 esc/portal/heartbeat.py    keeps the saved session warm while the app runs
 esc/portal/adapter.py      ← the ONLY file holding portal selectors
-esc/views.py, urls.py      web UI
+esc/views.py, urls.py      web UI (every page behind a login)
+deploy/                    systemd unit, nginx snippet, env template
 esc/management/commands/   esc_login, esc_inspect, esc_run
-esc/tests.py               69 tests, mostly on the safety guarantees
+esc/tests.py               74 tests, mostly on the safety guarantees
 ```
 
 If the portal is redesigned, `esc/portal/adapter.py` is the file to fix.

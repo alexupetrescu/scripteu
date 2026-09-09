@@ -103,6 +103,7 @@
 <body>
 <header class="top"><div class="wrap"><nav>
   <span class="brand">ESC Outreach</span>
+  {% if user.is_authenticated %}
   <a href="{% url 'esc:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}on{% endif %}">Profiles</a>
   <a href="{% url 'esc:run_list' %}" class="{% if 'run' in request.resolver_match.url_name %}on{% endif %}">Runs</a>
   <a href="{% url 'esc:outreach_log' %}" class="{% if request.resolver_match.url_name == 'outreach_log' %}on{% endif %}">Outreach log</a>
@@ -110,9 +111,15 @@
   <a href="{% url 'esc:template_list' %}" class="{% if 'template' in request.resolver_match.url_name %}on{% endif %}">Templates</a>
   <span class="spacer"></span>
   <a href="{% url 'esc:settings' %}" class="{% if request.resolver_match.url_name == 'settings' %}on{% endif %}">Settings</a>
+  <form method="post" action="{% url 'logout' %}" style="display:inline; margin-left:14px">
+    {% csrf_token %}
+    <button class="btn small" type="submit" title="Signed in as {{ user.get_username }}">Sign out</button>
+  </form>
+  {% else %}<span class="spacer"></span>{% endif %}
 </nav></div></header>
 
 <main>
+  {% if user.is_authenticated %}
   {% if status.paused %}
     <div class="banner bad">
       <div><b>Kill switch is ON.</b>
@@ -166,6 +173,8 @@
       no selectors exist. Run <code>python manage.py esc_inspect --pass-id 82413 --capture-action</code>,
       then fill in <code>SELECTORS</code> in <code>esc/portal/adapter.py</code>.</div>
     </div>
+  {% endif %}
+
   {% endif %}
 
   {% for message in messages %}
