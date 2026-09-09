@@ -126,10 +126,14 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Database
 # https://docs.djangoproject.com/en/6.1/ref/settings/#databases
 
+# The database holds candidate ids, display names and the outreach history, so
+# it is personal data. Keep it out of the git checkout on a server: a deploy is
+# then a plain `git pull`, and the file can sit in a 0700 state directory
+# instead of a world-readable one.
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
+        'NAME': Path(os.environ.get('ESC_DB_PATH', BASE_DIR / 'db.sqlite3')),
         # A run thread, the session heartbeat and a polling request all hit this
         # one file at once. WAL lets readers and the writer coexist, and the
         # busy timeout absorbs the rest instead of raising "database is locked".
