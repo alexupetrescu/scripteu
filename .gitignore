@@ -15,3 +15,10 @@ db.sqlite3
 __pycache__/
 *.py[cod]
 .env
+
+# Scratch notes: these collect pasted terminal output, which is how a password
+# got committed once. Never tracked.
+x.md
+scratch*.md
+notes*.md
+*.secret
