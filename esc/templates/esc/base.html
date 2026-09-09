@@ -1,0 +1,181 @@
+{% load static %}<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}ESC Outreach{% endblock %}</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --panel: #fff; --ink: #16181d; --muted: #666e7a;
+    --line: #dfe3e8; --accent: #1a4fd6; --accent-ink: #fff;
+    --ok: #0f7a4a; --warn: #9a6400; --bad: #b3261e;
+    --warn-bg: #fff6e0; --bad-bg: #fdecea; --ok-bg: #e8f5ee;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #14161a; --panel: #1c1f25; --ink: #e9ecf1; --muted: #99a2b0;
+      --line: #2c313a; --accent: #6f9bff; --accent-ink: #0d1017;
+      --ok: #58d39a; --warn: #e8b45a; --bad: #ff8a80;
+      --warn-bg: #2e2612; --bad-bg: #2e1a18; --ok-bg: #142b21;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  header.top {
+    background: var(--panel); border-bottom: 1px solid var(--line);
+    padding: 0 20px; position: sticky; top: 0; z-index: 10;
+  }
+  .wrap { max-width: 1180px; margin: 0 auto; }
+  nav { display: flex; gap: 4px; align-items: center; flex-wrap: wrap; }
+  nav .brand { font-weight: 650; margin-right: 16px; padding: 14px 0; }
+  nav a { color: var(--muted); text-decoration: none; padding: 14px 10px; }
+  nav a:hover { color: var(--ink); }
+  nav a.on { color: var(--accent); box-shadow: inset 0 -2px 0 var(--accent); }
+  nav .spacer { margin-left: auto; }
+  main { max-width: 1180px; margin: 22px auto 60px; padding: 0 20px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 26px 0 10px; }
+  .sub { color: var(--muted); margin: 0 0 20px; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 10px; padding: 18px; margin-bottom: 16px;
+  }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+  .tablewrap { overflow-x: auto; }
+  a { color: var(--accent); }
+  .btn {
+    display: inline-block; padding: 7px 13px; border-radius: 7px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+    font: inherit; text-decoration: none;
+  }
+  .btn:hover { border-color: var(--accent); }
+  .btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .btn.danger { color: var(--bad); border-color: var(--bad); }
+  .btn.small { padding: 4px 9px; font-size: 13px; }
+  .pill {
+    display: inline-block; padding: 2px 9px; border-radius: 999px;
+    font-size: 12px; font-weight: 600; border: 1px solid transparent;
+  }
+  .pill.ok { background: var(--ok-bg); color: var(--ok); }
+  .pill.warn { background: var(--warn-bg); color: var(--warn); }
+  .pill.bad { background: var(--bad-bg); color: var(--bad); }
+  .pill.mute { background: var(--bg); color: var(--muted); border-color: var(--line); }
+  .banner {
+    border-radius: 9px; padding: 12px 15px; margin-bottom: 14px;
+    border: 1px solid; display: flex; gap: 12px; align-items: flex-start;
+  }
+  .banner.warn { background: var(--warn-bg); border-color: var(--warn); color: var(--warn); }
+  .banner.bad { background: var(--bad-bg); border-color: var(--bad); color: var(--bad); }
+  .banner.ok { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
+  .banner b { display: block; }
+  .banner code, code {
+    font: 13px/1.4 ui-monospace, Consolas, monospace;
+    background: rgba(128,128,128,.16); padding: 1px 5px; border-radius: 4px;
+  }
+  form p { margin: 0 0 13px; }
+  label { display: block; font-weight: 600; font-size: 13px; margin-bottom: 4px; }
+  input[type=text], input[type=number], input[type=date], select, textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--line);
+    border-radius: 7px; background: var(--bg); color: var(--ink); font: inherit;
+  }
+  input[type=checkbox] { width: auto; }
+  .helptext { color: var(--muted); font-size: 12px; display: block; margin-top: 3px; }
+  .errorlist { color: var(--bad); list-style: none; padding: 0; margin: 4px 0; font-size: 13px; }
+  .grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 0 18px; }
+  .stats { display: flex; gap: 26px; flex-wrap: wrap; margin: 6px 0 14px; }
+  .stat .n { font-size: 26px; font-weight: 650; }
+  .stat .k { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+  pre.log {
+    background: var(--bg); border: 1px solid var(--line); border-radius: 8px;
+    padding: 12px; max-height: 460px; overflow: auto; margin: 0;
+    font: 12.5px/1.55 ui-monospace, Consolas, monospace; white-space: pre-wrap;
+  }
+  .muted { color: var(--muted); }
+  .right { text-align: right; }
+  .empty { color: var(--muted); padding: 26px 0; text-align: center; }
+</style>
+</head>
+<body>
+<header class="top"><div class="wrap"><nav>
+  <span class="brand">ESC Outreach</span>
+  <a href="{% url 'esc:dashboard' %}" class="{% if request.resolver_match.url_name == 'dashboard' %}on{% endif %}">Profiles</a>
+  <a href="{% url 'esc:run_list' %}" class="{% if 'run' in request.resolver_match.url_name %}on{% endif %}">Runs</a>
+  <a href="{% url 'esc:outreach_log' %}" class="{% if request.resolver_match.url_name == 'outreach_log' %}on{% endif %}">Outreach log</a>
+  <a href="{% url 'esc:candidate_list' %}" class="{% if request.resolver_match.url_name == 'candidate_list' %}on{% endif %}">Candidates</a>
+  <a href="{% url 'esc:template_list' %}" class="{% if 'template' in request.resolver_match.url_name %}on{% endif %}">Templates</a>
+  <span class="spacer"></span>
+  <a href="{% url 'esc:settings' %}" class="{% if request.resolver_match.url_name == 'settings' %}on{% endif %}">Settings</a>
+</nav></div></header>
+
+<main>
+  {% if status.paused %}
+    <div class="banner bad">
+      <div><b>Kill switch is ON.</b>
+      No run can contact anyone until it is turned off in
+      <a href="{% url 'esc:settings' %}">Settings</a>.</div>
+    </div>
+  {% endif %}
+
+  {% if status.session.state == 'none' %}
+    <div class="banner warn">
+      <div><b>Not signed in to the portal.</b>
+      Runs cannot reach the portal until you log in to EU Login by hand, once:
+      <a href="{% url 'esc:settings' %}">Settings</a> or
+      <code>python manage.py esc_login --pass-id 82413</code></div>
+    </div>
+  {% elif status.session.state == 'expired' %}
+    <div class="banner bad">
+      <div><b>The saved portal session has expired.</b>
+      Its session cookie ran out on {{ status.session.portal_until|date:"j M Y H:i" }} UTC.
+      A run will try to re-authenticate silently through EU Login first, but if
+      that fails you need to <a href="{% url 'esc:settings' %}">sign in again</a>.</div>
+    </div>
+  {% elif status.session.state == 'recoverable' %}
+    <div class="banner warn">
+      <div><b>The portal session has lapsed.</b>
+      Your EU Login sign-in is still valid, so the next run should restore it
+      without asking you for anything. If it cannot, you will be told.</div>
+    </div>
+  {% elif status.session.state == 'expiring' %}
+    <div class="banner warn">
+      <div><b>The portal session expires soon</b>
+      ({{ status.session.portal_until|date:"j M Y H:i" }} UTC). Runs and the
+      keep-alive will try to refresh it on their own.</div>
+    </div>
+  {% endif %}
+
+  {% if status.unresolved %}
+    <div class="banner bad">
+      <div><b>{{ status.unresolved }} outreach row(s) unconfirmed.</b>
+      A send was started but its outcome was never recorded — those people are
+      blocked from further contact until you
+      <a href="{% url 'esc:outreach_log' %}?status=SENDING">check the portal and say
+      what happened</a>.</div>
+    </div>
+  {% endif %}
+
+  {% if not status.adapter_configured %}
+    <div class="banner warn">
+      <div><b>Portal adapter not configured — live runs are blocked.</b>
+      The search page is behind EU Login and its markup has not been captured yet, so
+      no selectors exist. Run <code>python manage.py esc_inspect --pass-id 82413 --capture-action</code>,
+      then fill in <code>SELECTORS</code> in <code>esc/portal/adapter.py</code>.</div>
+    </div>
+  {% endif %}
+
+  {% for message in messages %}
+    <div class="banner {% if message.tags == 'error' %}bad{% elif message.tags == 'success' %}ok{% else %}warn{% endif %}">
+      <div>{{ message }}</div>
+    </div>
+  {% endfor %}
+
+  {% block content %}{% endblock %}
+</main>
+{% block scripts %}{% endblock %}
+</body>
+</html>

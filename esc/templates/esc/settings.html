@@ -1,0 +1,187 @@
+{% extends 'esc/base.html' %}
+{% block title %}Settings — ESC Outreach{% endblock %}
+
+{% block content %}
+<h1>Settings</h1>
+<p class="sub">Session health, global limits and the emergency stop.</p>
+
+<div class="panel">
+  <h2 style="margin-top:0">Portal session</h2>
+  <p>
+    <span id="session-pill">
+    {% if status.session.state == 'ok' %}
+      <span class="pill ok">signed in</span>
+    {% elif status.session.state == 'expiring' %}
+      <span class="pill warn">expires soon</span>
+    {% elif status.session.state == 'recoverable' %}
+      <span class="pill warn">lapsed — recoverable</span>
+    {% elif status.session.state == 'expired' %}
+      <span class="pill bad">expired</span>
+    {% else %}
+      <span class="pill bad">not signed in</span>
+    {% endif %}
+    </span>
+  </p>
+
+  {% if status.has_session %}
+    <table style="margin:0 0 14px; width:auto">
+      <tr>
+        <td class="muted">Portal session valid until</td>
+        <td>{% if status.session.portal_until %}{{ status.session.portal_until|date:"j M Y H:i" }} UTC
+            {% elif status.session.state == 'recoverable' %}<span class="muted">lapsed — EU Login should restore it on the next run</span>
+            {% else %}<span class="muted">not dated — refreshed on every run</span>{% endif %}</td>
+      </tr>
+      <tr>
+        <td class="muted">EU Login ticket until</td>
+        <td>{% if status.session.eulogin_until %}{{ status.session.eulogin_until|date:"j M Y H:i" }} UTC
+            {% else %}<span class="muted">unknown</span>{% endif %}</td>
+      </tr>
+      <tr>
+        <td class="muted">Last saved</td>
+        <td>{{ status.session_saved_at|date:"j M Y H:i" }} UTC</td>
+      </tr>
+      <tr>
+        <td class="muted">Keep-alive</td>
+        <td>
+          {% if status.heartbeat.enabled %}
+            every {{ status.heartbeat.interval }}s —
+            {{ status.heartbeat.result|default:"not run yet" }}
+            {% if status.heartbeat_last_ok %}
+              <span class="muted">(last healthy check
+                {{ status.heartbeat_last_ok|date:"j M H:i" }} UTC)</span>
+            {% endif %}
+          {% else %}<span class="muted">off</span>{% endif %}
+        </td>
+      </tr>
+    </table>
+  {% endif %}
+
+  <p class="muted">
+    EU Login cannot be scripted — ECAS blocks non-browser clients outright, and this
+    tool never handles your password. Sign in by hand <b>once</b>, in the button below;
+    after that the app keeps the session alive by itself, and when the portal's own
+    session lapses it rides the EU Login redirect back rather than stopping to ask
+    you. You are only asked again when EU Login itself expires the ticket.
+  </p>
+
+  <form method="post" action="{% url 'esc:portal_login' %}" id="login-form"
+        style="display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap">
+    {% csrf_token %}
+    <div style="max-width:160px">
+      <label for="login-pass-id">Placement id</label>
+      <input type="text" name="pass_id" id="login-pass-id" value="{{ default_pass_id }}">
+    </div>
+    <button class="btn primary" type="submit" id="login-btn"
+            {% if login_running %}disabled{% endif %}>
+      Open login in same browser
+    </button>
+    <span id="login-status" class="helptext" style="display:inline; align-self:center">
+      {% if login_running %}Browser window open — complete EU Login there…{% endif %}
+    </span>
+  </form>
+
+  <p class="muted" style="margin-top:14px">
+    Opens your installed browser (Chrome/Edge) with the same saved profile every
+    later run uses, so EU Login remembers the device and 2FA is not re-asked. When
+    login finishes the app verifies the session headlessly and marks itself ready.
+    The saved session is a live admin credential — the profile and
+    <code>storage_state.json</code> are gitignored; delete them to sign out.
+    Prefer the command line? <code>{{ login_command }}</code>
+  </p>
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0">Portal adapter</h2>
+  <p>
+    {% if status.adapter_configured %}
+      <span class="pill ok">configured</span>
+    {% else %}
+      <span class="pill bad">not configured — live runs blocked</span>
+    {% endif %}
+    {% if status.schema_available %}
+      <span class="pill ok">filter schema discovered</span>
+    {% else %}
+      <span class="pill warn">filter schema not discovered</span>
+    {% endif %}
+  </p>
+  {% if status.adapter_missing %}
+    <p class="muted">Still placeholders:
+      {% for key in status.adapter_missing %}<code>{{ key }}</code> {% endfor %}
+    </p>
+  {% endif %}
+  <p class="muted">
+    Recon opens the real search page with your saved session and dumps its markup,
+    form fields and network traffic to <code>recon/</code>. Use
+    <code>--capture-action</code> to record what happens when you contact one
+    candidate by hand — that capture is what reveals the outreach request.
+  </p>
+  <p><code>{{ inspect_command }}</code></p>
+</div>
+
+<div class="panel">
+  <h2 style="margin-top:0">Limits and kill switch</h2>
+  <form method="post">
+    {% csrf_token %}
+    {% for field in form %}
+      <p>
+        {{ field.label_tag }}{{ field }}{{ field.errors }}
+        {% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}
+      </p>
+    {% endfor %}
+    <button class="btn primary" type="submit">Save settings</button>
+  </form>
+
+  <hr style="border:none; border-top:1px solid var(--line); margin:18px 0">
+
+  <form method="post" action="{% url 'esc:toggle_pause' %}">
+    {% csrf_token %}
+    <input type="hidden" name="next" value="{% url 'esc:settings' %}">
+    <button class="btn {% if not status.paused %}danger{% else %}primary{% endif %}" type="submit">
+      {% if status.paused %}Turn the kill switch off{% else %}Stop everything now{% endif %}
+    </button>
+    <span class="helptext" style="display:inline; margin-left:8px">
+      Takes effect between candidates — a run in progress halts within one step.
+    </span>
+  </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var btn = document.getElementById('login-btn');
+  var statusEl = document.getElementById('login-status');
+  var form = document.getElementById('login-form');
+  if (!form) return;
+  var url = "{% url 'esc:portal_login_status' %}";
+  var wasRunning = {{ login_running|yesno:"true,false" }};
+
+  // While the login window is open, show the browser's echoed messages and
+  // reload once it finishes so the "signed in" banner updates.
+  form.addEventListener('submit', function () {
+    setTimeout(function () { btn.disabled = true; poll(); }, 300);
+  });
+
+  function poll() {
+    fetch(url, { headers: { 'X-Requested-With': 'fetch' } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (d.message) statusEl.textContent = d.message;
+        if (d.running) {
+          btn.disabled = true;
+          wasRunning = true;
+          setTimeout(poll, 1500);
+        } else if (wasRunning) {
+          // A login that was running has just finished — refresh the page.
+          setTimeout(function () { location.reload(); }, 800);
+        } else {
+          btn.disabled = false;
+        }
+      })
+      .catch(function () { setTimeout(poll, 3000); });
+  }
+
+  if (wasRunning) poll();
+})();
+</script>
+{% endblock %}

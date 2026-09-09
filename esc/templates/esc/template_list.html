@@ -1,0 +1,30 @@
+{% extends 'esc/base.html' %}
+{% block title %}Message templates — ESC Outreach{% endblock %}
+
+{% block content %}
+<h1>Message templates</h1>
+<p class="sub">The message sent to a candidate. Placeholders:
+<code>{name}</code>, <code>{first_name}</code>, <code>{id}</code>.</p>
+
+<p><a class="btn primary" href="{% url 'esc:template_new' %}">New template</a></p>
+
+<div class="panel">
+{% if templates %}
+<div class="tablewrap"><table>
+  <thead><tr><th>Name</th><th>Subject</th><th>Used by</th><th>Created</th></tr></thead>
+  <tbody>
+  {% for t in templates %}
+    <tr>
+      <td><a href="{% url 'esc:template_edit' t.pk %}">{{ t.name }}</a></td>
+      <td class="muted">{{ t.subject|default:"—"|truncatechars:70 }}</td>
+      <td class="muted">{{ t.profiles.count }} profile{{ t.profiles.count|pluralize }}</td>
+      <td class="muted">{{ t.created_at|date:"j M Y" }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}
+  <div class="empty">No templates yet. A live run needs one.</div>
+{% endif %}
+</div>
+{% endblock %}

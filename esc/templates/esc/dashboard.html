@@ -1,0 +1,80 @@
+{% extends 'esc/base.html' %}
+{% block title %}Search profiles — ESC Outreach{% endblock %}
+
+{% block content %}
+<h1>Search profiles</h1>
+<p class="sub">A profile is a saved set of portal search filters plus the pacing used when contacting the people it matches.</p>
+
+{% if active_runs %}
+  <div class="banner ok">
+    <div><b>{{ active_runs|length }} run(s) in progress.</b>
+      {% for r in active_runs %}<a href="{% url 'esc:run_detail' r.pk %}">{{ r }}</a>{% if not forloop.last %}, {% endif %}{% endfor %}
+    </div>
+  </div>
+{% endif %}
+
+<p><a class="btn primary" href="{% url 'esc:profile_new' %}">New profile</a></p>
+
+{% if rows %}
+<div class="panel"><div class="tablewrap">
+<table>
+  <thead><tr>
+    <th>Profile</th><th>Placement</th><th>Filters</th><th>Template</th>
+    <th class="right">Sent</th><th class="right">Left today</th>
+    <th>Last run</th><th></th>
+  </tr></thead>
+  <tbody>
+  {% for row in rows %}
+    <tr>
+      <td>
+        <a href="{% url 'esc:profile_edit' row.profile.pk %}">{{ row.profile.name }}</a>
+        {% if not row.profile.enabled %}<span class="pill mute">disabled</span>{% endif %}
+      </td>
+      <td><code>{{ row.profile.pass_id }}</code></td>
+      <td class="muted">{{ row.profile.filters|length }} filter{{ row.profile.filters|length|pluralize }}</td>
+      <td class="muted">{{ row.profile.template.name|default:"—" }}</td>
+      <td class="right">{{ row.sent_total }}</td>
+      <td class="right">{{ row.remaining_today }}</td>
+      <td>
+        {% if row.last_run %}
+          <a href="{% url 'esc:run_detail' row.last_run.pk %}">
+            {% if row.last_run.state == 'DONE' %}<span class="pill ok">done</span>
+            {% elif row.last_run.state == 'RUNNING' or row.last_run.state == 'QUEUED' %}<span class="pill warn">running</span>
+            {% elif row.last_run.state == 'NEEDS_LOGIN' %}<span class="pill bad">needs login</span>
+            {% elif row.last_run.state == 'FAILED' %}<span class="pill bad">failed</span>
+            {% else %}<span class="pill mute">{{ row.last_run.get_state_display|lower }}</span>{% endif %}
+          </a>
+          <span class="muted">{{ row.last_run.started_at|date:"j M H:i" }}</span>
+        {% else %}<span class="muted">never</span>{% endif %}
+      </td>
+      <td class="right">
+        <form method="post" action="{% url 'esc:run_start' row.profile.pk %}" style="display:inline">
+          {% csrf_token %}
+          <input type="hidden" name="mode" value="dry">
+          <button class="btn small" type="submit"
+            {% if status.active_run %}disabled title="Run #{{ status.active_run.pk }} is still going — one run at a time"{% endif %}>
+            Dry run
+          </button>
+        </form>
+        <form method="post" action="{% url 'esc:run_start' row.profile.pk %}" style="display:inline"
+              onsubmit="return confirm('LIVE RUN\n\nThis contacts real people on the portal.\n\nProfile: {{ row.profile.name|escapejs }}\nUp to {{ row.profile.per_run_cap }} this run, {{ row.remaining_today }} left today.\n\nContinue?');">
+          {% csrf_token %}
+          <input type="hidden" name="mode" value="live">
+          <input type="hidden" name="confirm" value="yes">
+          <button class="btn small danger" type="submit"
+            {% if status.paused or not status.adapter_configured or not row.profile.template or status.active_run %}disabled title="Blocked: see the banners above"{% endif %}>
+            Run live
+          </button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div></div>
+{% else %}
+  <div class="panel"><div class="empty">
+    No profiles yet. <a href="{% url 'esc:profile_new' %}">Create one</a> to get started.
+  </div></div>
+{% endif %}
+{% endblock %}

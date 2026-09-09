@@ -1,0 +1,41 @@
+{% extends 'esc/base.html' %}
+{% block title %}Runs — ESC Outreach{% endblock %}
+
+{% block content %}
+<h1>Runs</h1>
+<p class="sub">Every search and outreach run, newest first.</p>
+
+<div class="panel">
+{% if runs %}
+<div class="tablewrap"><table>
+  <thead><tr>
+    <th>#</th><th>Profile</th><th>Mode</th><th>State</th>
+    <th class="right">Matched</th><th class="right">Contacted</th>
+    <th class="right">Skipped</th><th class="right">Failed</th><th>Started</th>
+  </tr></thead>
+  <tbody>
+  {% for run in runs %}
+    <tr>
+      <td><a href="{% url 'esc:run_detail' run.pk %}">{{ run.pk }}</a></td>
+      <td>{{ run.search_profile.name }}</td>
+      <td>{% if run.dry_run %}<span class="pill mute">dry</span>{% else %}<span class="pill bad">live</span>{% endif %}</td>
+      <td>
+        {% if run.state == 'DONE' %}<span class="pill ok">done</span>
+        {% elif run.state == 'RUNNING' or run.state == 'QUEUED' %}<span class="pill warn">{{ run.get_state_display|lower }}</span>
+        {% elif run.state == 'STOPPED' %}<span class="pill mute">stopped</span>
+        {% else %}<span class="pill bad">{{ run.get_state_display|lower }}</span>{% endif %}
+      </td>
+      <td class="right">{{ run.found_count }}</td>
+      <td class="right">{{ run.contacted_count }}</td>
+      <td class="right">{{ run.skipped_count }}</td>
+      <td class="right">{{ run.failed_count }}</td>
+      <td class="muted">{{ run.started_at|date:"j M Y H:i"|default:"—" }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}
+  <div class="empty">No runs yet.</div>
+{% endif %}
+</div>
+{% endblock %}

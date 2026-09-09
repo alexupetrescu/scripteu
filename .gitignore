@@ -1,0 +1,17 @@
+# A LIVE ADMIN SESSION for the ESC portal. Anyone with this file can act as
+# your organisation. Never commit it.
+storage_state.json
+
+# Persistent browser profile used by "Open login in same browser" — holds live
+# session cookies, same sensitivity as storage_state.json.
+.browser_profile/
+
+# Recon dumps: page markup and network traces from the candidate search, so
+# they can contain other people's personal data.
+recon/
+
+.venv/
+db.sqlite3
+__pycache__/
+*.py[cod]
+.env

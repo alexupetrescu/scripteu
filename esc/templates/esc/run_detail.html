@@ -1,0 +1,110 @@
+{% extends 'esc/base.html' %}
+{% block title %}Run #{{ run.pk }} — ESC Outreach{% endblock %}
+
+{% block content %}
+<h1>Run #{{ run.pk }} — {{ run.search_profile.name }}</h1>
+<p class="sub">
+  {% if run.dry_run %}<span class="pill mute">dry run — nothing is sent</span>
+  {% else %}<span class="pill bad">live run</span>{% endif %}
+  <span id="state-pill" class="pill warn">{{ run.get_state_display }}</span>
+  <span class="muted">started {{ run.started_at|date:"j M Y H:i" }}</span>
+</p>
+
+<div class="panel">
+  <div class="stats">
+    <div class="stat"><div class="n" id="s-found">{{ run.found_count }}</div><div class="k">matched</div></div>
+    <div class="stat"><div class="n" id="s-contacted">{{ run.contacted_count }}</div><div class="k">{% if run.dry_run %}would contact{% else %}contacted{% endif %}</div></div>
+    <div class="stat"><div class="n" id="s-skipped">{{ run.skipped_count }}</div><div class="k">skipped</div></div>
+    <div class="stat"><div class="n" id="s-failed">{{ run.failed_count }}</div><div class="k">failed</div></div>
+  </div>
+
+  {% if run.is_active %}
+    <form method="post" action="{% url 'esc:run_stop' run.pk %}">
+      {% csrf_token %}
+      <button class="btn danger" type="submit">Stop after current candidate</button>
+    </form>
+  {% endif %}
+</div>
+
+<div id="needs-login" class="banner bad" style="display:{% if run.state == 'NEEDS_LOGIN' %}flex{% else %}none{% endif %}">
+  <div><b>The portal session expired.</b>
+    Nothing further was sent. Sign in again, then start a new run:
+    <code>python manage.py esc_login --pass-id {{ run.search_profile.pass_id }}</code></div>
+</div>
+
+{% if run.error %}
+  <div class="panel"><h2 style="margin-top:0">Error</h2><pre class="log">{{ run.error }}</pre></div>
+{% endif %}
+
+<div class="panel">
+  <h2 style="margin-top:0">Log</h2>
+  <pre class="log" id="log">{{ run.log|default:"Waiting for the run to start…" }}</pre>
+</div>
+
+{% if outreach %}
+<div class="panel">
+  <h2 style="margin-top:0">Candidates in this run</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th>Candidate</th><th>Status</th><th>Detail</th><th>Sent at</th></tr></thead>
+    <tbody>
+    {% for o in outreach %}
+      <tr>
+        <td>{{ o.candidate }}</td>
+        <td>
+          {% if o.status == 'SENT' %}<span class="pill ok">sent</span>
+          {% elif o.status == 'FAILED' %}<span class="pill bad">failed</span>
+          {% else %}<span class="pill mute">{{ o.get_status_display|lower }}</span>{% endif %}
+        </td>
+        <td class="muted">{{ o.detail|truncatechars:90 }}</td>
+        <td class="muted">{{ o.sent_at|date:"j M H:i"|default:"—" }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table></div>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+(function () {
+  var active = {{ run.is_active|yesno:"true,false" }};
+  if (!active) return;
+
+  var log = document.getElementById('log');
+  var url = "{% url 'esc:run_status' run.pk %}";
+
+  function paint(d) {
+    document.getElementById('s-found').textContent = d.found;
+    document.getElementById('s-contacted').textContent = d.contacted;
+    document.getElementById('s-skipped').textContent = d.skipped;
+    document.getElementById('s-failed').textContent = d.failed;
+
+    var pill = document.getElementById('state-pill');
+    pill.textContent = d.state_display;
+    pill.className = 'pill ' + (d.active ? 'warn' : (d.state === 'DONE' ? 'ok' : 'bad'));
+
+    if (d.log) {
+      // Only autoscroll when already at the bottom, so reading back through
+      // the log isn't yanked away on every poll.
+      var atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 40;
+      log.textContent = d.log;
+      if (atBottom) log.scrollTop = log.scrollHeight;
+    }
+    document.getElementById('needs-login').style.display = d.needs_login ? 'flex' : 'none';
+  }
+
+  function poll() {
+    fetch(url, { headers: { 'X-Requested-With': 'fetch' } })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        paint(d);
+        if (d.active) setTimeout(poll, 2000);
+        else setTimeout(function () { location.reload(); }, 1200);
+      })
+      .catch(function () { setTimeout(poll, 5000); });
+  }
+  setTimeout(poll, 1000);
+})();
+</script>
+{% endblock %}

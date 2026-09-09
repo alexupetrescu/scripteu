@@ -1,0 +1,81 @@
+{% extends 'esc/base.html' %}
+{% block title %}Outreach log — ESC Outreach{% endblock %}
+
+{% block content %}
+<h1>Outreach log</h1>
+<p class="sub">The audit trail of who has been contacted. A <code>sent</code> row here is
+what permanently prevents that person being contacted again under the same profile.
+An <code>unconfirmed</code> row is a send that was started but never confirmed — it
+blocks too, until you say what really happened.</p>
+
+<div class="panel">
+  <form method="get" style="display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap">
+    <div style="min-width:190px">
+      <label for="f-profile">Profile</label>
+      <select name="profile" id="f-profile">
+        <option value="">All profiles</option>
+        {% for p in profiles %}
+          <option value="{{ p.pk }}" {% if current_profile == p.pk|stringformat:"s" %}selected{% endif %}>{{ p.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div style="min-width:190px">
+      <label for="f-status">Status</label>
+      <select name="status" id="f-status">
+        <option value="">All statuses</option>
+        {% for value, label in statuses %}
+          <option value="{{ value }}" {% if current_status == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <button class="btn" type="submit">Filter</button>
+    <a class="btn" href="{% url 'esc:outreach_log' %}">Reset</a>
+    <a class="btn" href="?status=SENDING">Unconfirmed only</a>
+  </form>
+</div>
+
+<div class="panel">
+{% if outreach %}
+<div class="tablewrap"><table>
+  <thead><tr>
+    <th>Candidate</th><th>Profile</th><th>Status</th><th>Template</th>
+    <th>Sent at</th><th>Run</th><th>Detail</th><th></th>
+  </tr></thead>
+  <tbody>
+  {% for o in outreach %}
+    <tr>
+      <td>{{ o.candidate }}</td>
+      <td class="muted">{{ o.search_profile.name }}</td>
+      <td>
+        {% if o.status == 'SENT' %}<span class="pill ok">sent</span>
+        {% elif o.status == 'FAILED' %}<span class="pill bad">failed</span>
+        {% elif o.status == 'SENDING' %}<span class="pill bad">unconfirmed</span>
+        {% else %}<span class="pill mute">{{ o.get_status_display|lower }}</span>{% endif %}
+      </td>
+      <td class="muted">{{ o.template.name|default:"—" }}</td>
+      <td class="muted">{{ o.sent_at|date:"j M Y H:i"|default:"—" }}</td>
+      <td>{% if o.run %}<a href="{% url 'esc:run_detail' o.run.pk %}">#{{ o.run.pk }}</a>{% else %}—{% endif %}</td>
+      <td class="muted">{{ o.detail|truncatechars:70 }}</td>
+      <td class="right">
+        {% if o.status == 'SENDING' %}
+          <form method="post" action="{% url 'esc:outreach_resolve' o.pk %}" style="display:inline">
+            {% csrf_token %}<input type="hidden" name="outcome" value="sent">
+            <button class="btn small" type="submit"
+                    title="The portal shows this person was contacted">Was sent</button>
+          </form>
+          <form method="post" action="{% url 'esc:outreach_resolve' o.pk %}" style="display:inline">
+            {% csrf_token %}<input type="hidden" name="outcome" value="not_sent">
+            <button class="btn small" type="submit"
+                    title="Not contacted — release them for a later run">Was not sent</button>
+          </form>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}
+  <div class="empty">Nothing logged yet.</div>
+{% endif %}
+</div>
+{% endblock %}

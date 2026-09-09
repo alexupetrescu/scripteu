@@ -1,0 +1,46 @@
+{% extends 'esc/base.html' %}
+{% block title %}Candidates — ESC Outreach{% endblock %}
+
+{% block content %}
+<h1>Candidates</h1>
+<p class="sub">Only the portal's own id, a display name and the profile link are kept here.
+Nothing else about a candidate is copied off the portal.</p>
+
+<div class="panel">
+  <form method="get" style="display:flex; gap:10px; align-items:flex-end">
+    <div style="flex:1; max-width:380px">
+      <label for="q">Search</label>
+      <input type="text" name="q" id="q" value="{{ q }}" placeholder="Name or portal id">
+    </div>
+    <button class="btn" type="submit">Search</button>
+    {% if q %}<a class="btn" href="{% url 'esc:candidate_list' %}">Reset</a>{% endif %}
+  </form>
+</div>
+
+<div class="panel">
+{% if candidates %}
+<div class="tablewrap"><table>
+  <thead><tr><th>Name</th><th>Portal id</th><th>Contacted under</th><th>First seen</th></tr></thead>
+  <tbody>
+  {% for c in candidates %}
+    <tr>
+      <td>
+        {% if c.profile_url %}<a href="{{ c.profile_url }}" target="_blank" rel="noopener">{{ c.display_name|default:"(no name)" }}</a>
+        {% else %}{{ c.display_name|default:"(no name)" }}{% endif %}
+      </td>
+      <td><code>{{ c.external_id }}</code></td>
+      <td>
+        {% for o in c.outreach.all %}
+          <span class="pill {% if o.status == 'SENT' %}ok{% else %}mute{% endif %}">{{ o.search_profile.name }}</span>
+        {% empty %}<span class="muted">—</span>{% endfor %}
+      </td>
+      <td class="muted">{{ c.first_seen_at|date:"j M Y" }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table></div>
+{% else %}
+  <div class="empty">No candidates recorded yet. Run a search to populate this.</div>
+{% endif %}
+</div>
+{% endblock %}

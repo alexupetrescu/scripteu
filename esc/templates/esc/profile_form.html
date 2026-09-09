@@ -1,0 +1,73 @@
+{% extends 'esc/base.html' %}
+{% block title %}{% if profile %}{{ profile.name }}{% else %}New profile{% endif %} — ESC Outreach{% endblock %}
+
+{% block content %}
+<h1>{% if profile %}Edit “{{ profile.name }}”{% else %}New search profile{% endif %}</h1>
+<p class="sub">Filters decide who is matched. Caps and delays decide how fast they are contacted.</p>
+
+<form method="post">
+  {% csrf_token %}
+
+  <div class="panel">
+    <h2 style="margin-top:0">Profile</h2>
+    {{ form.non_field_errors }}
+    <div class="grid2">
+      {% for field in form %}
+        <p>
+          {{ field.label_tag }}
+          {{ field }}
+          {{ field.errors }}
+          {% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}
+        </p>
+      {% endfor %}
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2 style="margin-top:0">Search filters</h2>
+    {% if filter_form %}
+      <p class="muted" style="margin-top:0">
+        These fields were discovered from the live portal form by
+        <code>esc_inspect</code>, so they match what the portal actually accepts.
+      </p>
+      <div class="grid2">
+        {% for field in filter_form %}
+          <p>{{ field.label_tag }}{{ field }}{{ field.errors }}</p>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="banner warn">
+        <div><b>Filter fields not discovered yet.</b>
+          Run <code>python manage.py esc_inspect --pass-id {{ profile.pass_id|default:"82413" }}</code>
+          and this section turns into a proper form built from the portal's own fields.
+          Until then, enter the query parameters by hand.</div>
+      </div>
+      {% for field in raw_form %}
+        <p>
+          {{ field.label_tag }}{{ field }}{{ field.errors }}
+          {% if field.help_text %}<span class="helptext">{{ field.help_text }}</span>{% endif %}
+        </p>
+      {% endfor %}
+    {% endif %}
+  </div>
+
+  <p>
+    <button class="btn primary" type="submit">Save profile</button>
+    <a class="btn" href="{% url 'esc:dashboard' %}">Cancel</a>
+  </p>
+</form>
+
+{% if profile %}
+  <div class="panel">
+    <h2 style="margin-top:0">Danger zone</h2>
+    <p class="muted">Deleting a profile also deletes its outreach history — including
+      the record of who has already been contacted, which is what prevents contacting
+      them a second time.</p>
+    <form method="post" action="{% url 'esc:profile_delete' profile.pk %}"
+          onsubmit="return confirm('Delete “{{ profile.name|escapejs }}” and its outreach history?\n\nPeople already contacted under this profile could then be contacted again.');">
+      {% csrf_token %}
+      <button class="btn danger" type="submit">Delete profile</button>
+    </form>
+  </div>
+{% endif %}
+{% endblock %}
