@@ -67,8 +67,12 @@ Needs system libraries, which is the one step that wants root:
 
 ```bash
 sudo /srv/scripteu/.venv/bin/playwright install-deps chromium
-sudo -u scripteu PLAYWRIGHT_BROWSERS_PATH=/srv/scripteu/.playwright \
+# "env", not a bare VAR=value: sudo parses that itself and can drop it, which
+# silently installs the browser into ~/.cache instead of where the app looks.
+sudo -u scripteu env PLAYWRIGHT_BROWSERS_PATH=/srv/scripteu/.playwright \
      /srv/scripteu/.venv/bin/playwright install chromium
+
+ls /srv/scripteu/.playwright        # must list a chromium-* directory
 ```
 
 ## 3. Environment
