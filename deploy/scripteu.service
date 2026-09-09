@@ -10,7 +10,8 @@ After=network.target
 Type=notify
 User=scripteu
 Group=www-data
-WorkingDirectory=/srv/scripteu
+# The checkout, not the account's home: gunicorn imports config.wsgi from here.
+WorkingDirectory=/srv/scripteu/app
 EnvironmentFile=/etc/scripteu.env
 
 # A unix socket, not a port: this host already runs several gunicorn apps and

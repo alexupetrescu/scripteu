@@ -231,6 +231,7 @@ where they belong. Everything else should come back clean.
 | `cd`: Permission denied as your own user | `/srv/scripteu` is `0750` from `adduser` — `sudo chmod 0755 /srv/scripteu` |
 | 403 on `/scripteu/static/...` | same cause: nginx cannot traverse a `0750` home either |
 | git "dubious ownership" | run git as the owner: `sudo -u scripteu git -C /srv/scripteu/app ...` |
+| gunicorn exits `status=3` | worker failed to boot — `journalctl -u scripteu -n 50`; usually `WorkingDirectory` not pointing at the checkout |
 | 502, permission denied | socket ownership: unit `Group=` vs nginx's user |
 | 404 on every page | the `:/` at the end of `proxy_pass`, and `ESC_SCRIPT_NAME` — you need both |
 | CSS missing, admin unstyled | `collectstatic`, and the `alias` path in the snippet |
