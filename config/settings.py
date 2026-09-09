@@ -269,7 +269,15 @@ ESC_HEARTBEAT_INTERVAL = int(os.environ.get('ESC_HEARTBEAT_INTERVAL', '900'))
 # Settings page over noVNC, so it can be completed from any machine's browser
 # rather than from a terminal at the server. Empty URL = no console rendered.
 ESC_VNC_ENABLED = os.environ.get('ESC_VNC_ENABLED', '0') == '1'
-ESC_VNC_URL = os.environ.get('ESC_VNC_URL', '')
+
+# Derived from the mount point rather than hand-written: it has to be an
+# ABSOLUTE path. A relative "vnc.html?..." resolves against the page showing
+# it -- /scripteu/settings/vnc.html -- and 404s.
+_DEFAULT_VNC_URL = (
+    f"{_PREFIX}/vnc/vnc.html?path={_PREFIX.lstrip('/')}/vnc/websockify"
+    "&autoconnect=1&resize=scale&reconnect=1"
+) if _PREFIX else ''
+ESC_VNC_URL = os.environ.get('ESC_VNC_URL') or _DEFAULT_VNC_URL
 
 # Default pacing. Deliberately slow: this contacts real people, and hammering
 # the portal is the fastest way to get an organisation account suspended.
